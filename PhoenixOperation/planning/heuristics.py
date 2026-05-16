@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from planning.pddl import ActionSchema, State, Objects
+from planning.pddl import ActionSchema, State, Objects, get_all_groundings, get_applicable_actions
 
 
 def nullHeuristic(
     state: State,
     goal: State,
     domain: list[ActionSchema],
-    objects: Objects,
+    objects: Objects
 ) -> float:
     """Trivial heuristic — always returns 0 (equivalent to uniform-cost search)."""
     return 0
@@ -44,9 +44,23 @@ def ignorePreconditionsHeuristic(
          with the initial state, or generate all groundings regardless of state).
          Remember: with no preconditions, every grounding is "applicable".
     """
-    ### Your code here ###
+    unsatisfied = goal - state
+    if not unsatisfied:
+        return 0.0
 
-    ### End of your code ###
+    all_actions = get_all_groundings(domain, objects)
+    count = 0
+
+    while unsatisfied:        
+        best_action = max(all_actions, key=lambda a: len(a.add_list & unsatisfied), default=None)        
+        
+        if not best_action or len(best_action.add_list & unsatisfied) == 0:
+            return float('inf')
+            
+        unsatisfied = unsatisfied - best_action.add_list
+        count += 1
+
+    return float(count)
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +92,20 @@ def ignoreDeleteListsHeuristic(
          Use get_applicable_actions to enumerate applicable grounded actions at
          each step (preconditions still apply in the relaxed model).
     """
-    ### Your code here ###
+    current_state = state
+    unsatisfied = goal - current_state
+    count = 0
 
-    ### End of your code ###
+    while unsatisfied:        
+        applicable_actions = get_applicable_actions(current_state, domain, objects)        
+        
+        best_action = max(applicable_actions, key=lambda a: len(a.add_list & unsatisfied), default=None)
+
+        if not best_action or len(best_action.add_list & unsatisfied) == 0:
+            return float('inf')
+        
+        current_state = current_state | best_action.add_list
+        unsatisfied = goal - current_state
+        count += 1
+
+    return float(count)
