@@ -190,9 +190,20 @@ def regress(goal_set: State, action: Action) -> State | None:
     Tip: Use frozenset operations: intersection (&), difference (-), union (|).
          Check relevance first, then check for contradictions, then compute.
     """
-    ### Your code here ###
+    add_list = frozenset(action.add_list)
+    del_list = frozenset(action.del_list)
+    precond_pos = frozenset(action.precond_pos)
 
-    ### End of your code ###
+    # Condicion 1: la accion es relevante (contribuye al objetivo)
+    if not (add_list & goal_set):
+        return None
+
+    # Condicion 2: la accion no elimina fluentes que deben ser verdaderos
+    if del_list & goal_set:
+        return None
+
+    # Regresion: quitar lo que la accion anade, agregar precondiciones positivas
+    return (goal_set - add_list) | precond_pos
 
 
 def backwardSearch(problem: Problem) -> list[Action]:
@@ -213,9 +224,53 @@ def backwardSearch(problem: Problem) -> list[Action]:
          Skip subgoals that contain static predicates (MedicalPost, Adjacent,
          Pickable) that are false in the initial state — these are dead ends.
     """
-    ### Your code here ###
+    STATIC_PREDICATES = {"MedicalPost", "Adjacent", "Pickable"}
 
-    ### End of your code ###
+    initial = problem.getStartState()
+    goal = frozenset(problem.goal)
+
+    # Caso base: el estado inicial ya satisface el objetivo
+    if goal.issubset(initial):
+        return []
+
+    # Frontera BFS: cada elemento es (subgoal_actual, plan_hacia_adelante)
+    frontier = Queue()
+    frontier.push((goal, []))
+
+    visited = {goal}
+
+    while not frontier.isEmpty():
+        current_goal, actions = frontier.pop()
+
+        # Generar todas las groundings de acciones del dominio
+        for action in get_all_groundings(problem.domain, problem.objects):
+            regressed = regress(current_goal, action)
+
+            if regressed is None:
+                continue
+
+            # Se podan los callejones sin salida, los predicados estaticos falsos en el estado inicial
+            dead_end = False
+            for fluent in regressed:
+                predicate = fluent[0]
+                if predicate in STATIC_PREDICATES and fluent not in initial:
+                    dead_end = True
+                    break
+            if dead_end:
+                continue
+
+            # El plan se construye agregando la accion al inicio (orden forward)
+            new_plan = [action] + actions
+
+            # Condicion de exito: el subgoal regresado esta satisfecho por el estado inicial
+            if regressed.issubset(initial):
+                return new_plan
+
+            if regressed not in visited:
+                visited.add(regressed)
+                frontier.push((regressed, new_plan))
+
+    return []
 
 
 # ---------------------------------------------------------------------------
